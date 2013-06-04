@@ -2,8 +2,8 @@
 /*
 Plugin Name: Nicer Permalinks
 Plugin URI: http://bbpress.org/plugins/topic/nicer-permalinks/
-Description: Rewrites every bbPress URI removing the words "forum" and "topic" and emphasizes forum hierarchy. Based on <a href="http://www.technospot.net/blogs/">Ashish Mohta</a> and <a href="http://markroberthenderson.com/">Mark R. Henderson</a>'s <a href="http://blog.markroberthenderson.com/getting-rid-of-forums-and-topic-from-bbpress-permalinks-updated-plugin/">Remove Forum Topic</a> plugin.
-Version: 5.0.7
+Description: FV version puts names of forums into the topic url: /forum1/subforum1/topic. It had some issues with not existing topics because of that, so there is a hack on get_topic_link in it. Also .htaccess is heavily modified.
+Version: 100.5.0.7 modified by FV
 Author: mr_pelle
 Author URI: http://scr.im/mrpelle
 */
@@ -48,4 +48,3 @@ bb_register_plugin_deactivation_hook( __FILE__, 'nicer_permalinks_uninstall' );
 function nicer_permalinks_enabled() {
 	return (bool) bb_get_option( 'nicer_permalinks_enabled' );
 }
-?>
