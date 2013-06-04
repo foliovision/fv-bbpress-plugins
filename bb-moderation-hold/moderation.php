@@ -5,8 +5,74 @@ Plugin URI: http://www.adityanaik.com
 Description: Hold posts and topics for moderation
 Author: Aditya Naik
 Author URI: http://www.adityanaik.com/
-Version: 0.4.1
+Version: 100.0.4.1 modified by FV
 */
+
+
+add_filter( 'bb_init', 'fv_moderate_init', 5 );
+
+function fv_moderate_init( ) {
+  global $bb_current_user;
+  
+  if( $_COOKIE['fv_forum_email'] || isset( $bb_current_user->ID ) || bb_current_user_can('browse_deleted') ) {
+    add_filter( 'get_posts_where', 'fv_moderate_get_posts_where' );
+  }  
+}
+
+   
+function fv_moderate_get_posts_where( $where ) {
+  if( bb_current_user_can('browse_deleted') ) {
+    if( strpos( $where, "p.post_status = '0'" ) !== FALSE ) {
+      $where = str_replace( "p.post_status = '0'", "( p.post_status = '0' OR p.post_status = '-1' )", $where );
+    } 
+  } else {        
+    global $bbdb;
+    global $bb_current_user;
+    
+    if( isset( $bb_current_user->ID ) ) {
+      $user_id = $bb_current_user->ID;
+    } else {
+      $email = $bbdb->escape($_COOKIE['fv_forum_email']); 
+      $user_id = $bbdb->get_var( "SELECT ID FROM $bbdb->users WHERE user_email = '{$email}'" );
+    }
+    
+    if( strpos( $where, "p.post_status = '0'" ) !== FALSE ) {
+      $where = str_replace( "p.post_status = '0'", "( p.post_status = '0' OR ( p.post_status = '-1' AND poster_id = {$user_id} ) )", $where );
+    } 
+  
+  }
+  
+  add_filter( 'get_post_text', 'fv_moderate_post_text_notice', 20, 2);
+  return $where;
+} 
+
+
+function fv_moderate_post_text_notice( $text, $id ) {
+  global $bb_post;
+  if( $bb_post->post_status == -1 ) {
+    $text = '<em id="note-for-moderator">Your post is currently pending moderation.</em>'."\n\n".$text;
+  }
+	return $text;
+}
+
+
+add_filter( 'get_topics_where', 'fv_moderate_get_topics_where' );
+
+function fv_moderate_get_topics_where( $where ) {
+  //  latest posts
+  if( !current_user_can('browse_deleted') && trim($where) == "t.topic_status = '0' AND t.topic_sticky != '2'" ){
+    $where .= ' AND t.topic_posts > 0 ';
+  }
+  
+  //  forum listing  
+  else if( !current_user_can('browse_deleted') && preg_match( "~^t.forum_id = '\d+' AND t.topic_status = '0' AND t.topic_sticky !?= '0'$~", trim($where) ) ){
+    $where .= ' AND t.topic_posts > 0 ';
+  }
+  
+  return $where;
+}
+
+
 /**
  * Filter topics held for moderation
  *
@@ -88,6 +154,16 @@ function bb_moderation_fix_status_before_post($old_status, $post_id, $topic_id) 
     if (!$post_id && $hold_posts) {
 		$old_status = -1;    
     }
+    
+    ///
+    global $bbdb;
+    $topic = $bbdb->get_row("SELECT * FROM $bbdb->topics WHERE topic_id = '$topic_id'");
+    if($hold_topics && intval($topic->topic_posts) === 0):
+    $bbdb->query("UPDATE $bbdb->topics SET topic_status = '-1' WHERE topic_id = '$topic_id'");
+    if ('Y' == $options['hold_topics_send_email']) bb_moderation_mail_moderation();
+    endif;
+    ///
+    
     return $old_status;
 }
 
@@ -117,7 +193,8 @@ function bb_moderation_check_options($check = 'hold_topics', $options = false) {
 }
 add_action('bb_post.php','bb_moderation_hold_after_posting_do_the_magic');
 add_filter('pre_post_status','bb_moderation_fix_status_before_post',10,3);
-add_filter('post_delete_link','bb_moderation_fix_delete_link',10,3);
+//add_filter('post_delete_link','bb_moderation_fix_delete_link',10,3);     // we don't need this one anymore -> have the ajax "Approve" button on the frontend
+add_filter('post_delete_link','fv_moderation_approve_link',10,3);
 
 /**
  * Add a delete/moderate link to posts
@@ -127,9 +204,84 @@ add_filter('post_delete_link','bb_moderation_fix_delete_link',10,3);
  */
 function bb_moderation_fix_delete_link($r, $post_status, $post_id){
     if (-1 == $post_status)
-        $r = "<a href='" . bb_get_option('uri') . 'bb-admin/admin-base.php?plugin=bb_moderation_hold_post_admin_page' . "' >". __('Moderate') ."</a>";
+        $r = "<a class=\"post-moderate-link\" href='" . bb_get_option('uri') . 'bb-admin/admin-base.php?plugin=bb_moderation_hold_post_admin_page' . "' >". __('Moderate') ."</a>";
     return $r;
 }
+
+function fv_moderation_approve_link($r, $post_status, $post_id){
+    if( !bb_current_user_can( 'moderate' ) ) {
+      return $r;  
+    }
+    if (-1 == $post_status ) {
+        $strNonce = '\'' . bb_create_nonce('approve-post-' . $post_id) . '\'';
+        $r .= ' <a class="post-approve-link"  href="#post-' . $post_id . '" onclick="fv_approve_post(' . $post_id . ','.$strNonce.')" >'. __('Approve') .'</a>';
+    }    
+    return $r;
+}
+
+add_action('bb_ajax_approve-post','fv_approve_post_action' );
+
+function fv_approve_post_action() {
+  
+  if(!bb_verify_nonce($_POST['nonce'], 'approve-post-' . $_POST['postid'])) {
+    die('-2');
+  }
+  
+  if(bb_current_user_can( 'moderate' ) ) {
+    if(intval($_POST['postid']) <= 0) {      // check if there wasn't some error when sending the topic ID
+      die('-1');
+    }  
+    bb_moderation_hold_approve_posts(array($_POST['postid']));
+    die('1');
+  }
+  else {
+    die('0');  
+  }
+}
+
+add_action('bb_foot', 'fv_print_approve_comment_script');
+
+function fv_print_approve_comment_script() {
+  if( bb_current_user_can( 'moderate' ) ) :
+  ?>
+  <!-- From the BB Moderation Hold plugin -->
+  <script>
+  function fv_approve_post(id, nonce) {
+        var strPostbody = jQuery("#post-"+id+" div.post").html();
+        jQuery("#post-"+id+" div.post").text('Approving Comment... ');
+        
+        var url = '<?php echo bb_get_option('uri'); ?>bb-admin/admin-ajax.php';
+        
+        jQuery.post(url, { postid: id, action: "approve-post", nonce: nonce},
+
+            function(data){
+
+                if (data == '1') {
+                  jQuery("#post-"+id+" div.post").html(strPostbody);
+                  jQuery("#post-"+id+" #note-for-moderator").remove();
+                  jQuery("#post-"+id+" a.post-moderate-link").remove();
+                  jQuery("#post-"+id+" a.post-approve-link").remove();
+                }
+                else if (data == '-1' ) {
+                  jQuery("#post-"+id+" div.post").html('<p style="color: red;">Comment was NOT approved ! (something went wrong...)</p><br /><p style=\"color: red;\">The topic ID is 0 or negative integer.</p>');
+                }
+                else if (data == '-2' ) {
+                  jQuery("#post-"+id+" div.post").html('<p style="color: red;">Comment was NOT approved ! (something went wrong...)</p><br /><p style=\"color: red;\">Nonce wasn\'t verified properly.</p>');
+                }
+                else {
+                  jQuery("#post-"+id+" div.post").html('<p style="color: red;">Comment was NOT approved ! (something went wrong...)</p>');
+                }
+
+            });
+   
+  }
+  </script>
+  <!-- end of From the BB Moderation Hold plugin -->
+  <?php
+  endif;
+}
+
+/**** HERE BEGINS THE CODE RELATED TO THE ADMIN SCREEN ******/
 
 if (!BB_IS_ADMIN) {
 	return;
@@ -145,9 +297,14 @@ add_action( 'bb_admin_menu_generator', 'bb_moderation_hold_add_admin_page' );
 function bb_moderation_hold_add_admin_page() {
   global $bb_submenu;
 
-  bb_admin_add_submenu(__('Moderation Options'), 'moderate', 'bb_moderation_hold_admin_page');
-  bb_admin_add_submenu(__('Topics for Moderation'), 'moderate', 'bb_moderation_hold_topic_admin_page', 'content.php' );
-  bb_admin_add_submenu(__('Posts for Moderation'), 'moderate', 'bb_moderation_hold_post_admin_page', 'content.php' );
+  ///bb_admin_add_submenu(__('Moderation Options'), 'moderate', 'bb_moderation_hold_admin_page');
+  ///bb_admin_add_submenu(__('Topics for Moderation'), 'moderate', 'bb_moderation_hold_topic_admin_page', 'content.php' );
+  ///bb_admin_add_submenu(__('Posts for Moderation'), 'moderate', 'bb_moderation_hold_post_admin_page', 'content.php' );
+bb_admin_add_submenu(__('Moderation Options'), 'moderate', 'bb_moderation_hold_admin_page', 'options-general.php');
+bb_admin_add_submenu(__('Topics for Moderation'), 'moderate', 'bb_moderation_hold_topic_admin_page', 'topics.php' );
+bb_admin_add_submenu(__('Posts for Moderation'), 'moderate', 'bb_moderation_hold_post_admin_page', 'posts.php' );
+
+
 }
 
 /**
@@ -269,9 +426,9 @@ function bb_moderation_hold_post_admin_page() {
     <h2><?php _e('Posts for Moderation') ?></h2>
     <?php if ( $posts ) : ?>
       <form method="post" name="moderation_form" >
-        <table class="widefat">
+        <table id="posts-list" class="widefat">
           <tr class="thead">
-            <th></th>
+            <th style="width: 20px; "></th>
             <th><?php _e('Post') ?></th>
             <th><?php _e('Topic') ?></th>
             <th><?php _e('Poster') ?></th>
@@ -282,9 +439,28 @@ function bb_moderation_hold_post_admin_page() {
             $topic = get_topic( $bb_post->topic_id);
             ?>
             <tr<?php alt_class('post'); ?>>
-              <td><input type="checkbox" name="postids[]" value="<?php post_id(); ?>" /></td>
-              <td><div><?php echo substr(get_post_text(),0,150); ?></div>
-                <p><a href="<?php post_link(); ?>">Permalink</p>
+              <td style="width: 20px; "><input type="checkbox" name="postids[]" value="<?php post_id(); ?>" /></td>
+              <td class="post">
+                <?php post_text(); ?>
+                <div>
+                <span class="row-actions"><a href="<?php post_link(); ?>">Permalink</a>
+<?php
+  remove_filter('post_delete_link','bb_moderation_fix_delete_link',10,3);
+	bb_post_admin( array(
+		'before_each' => ' | ',
+		'each' => array(
+			'undelete' => array(
+				'before' => ' '
+			)
+		),
+		'last_each' => array(
+			'before' => ' | '
+		)
+	) );
+	add_filter('post_delete_link','bb_moderation_fix_delete_link',10,3);
+?>
+                </span>&nbsp;
+                </div>
               </td>
               <td><a href="<?php topic_link(); ?>"><?php topic_title(); ?></a></td>
               <td class="num"><?php post_author(); ?></td>
@@ -413,43 +589,45 @@ function bb_moderation_hold_approve_topics($topicids){
 }
 
 /**
- * Approve Posts
+ * Approve Posts - input has to be an array()
  *
  * @author  Aditya Naik <aditya@adityanaik.com>
  * @version v 0.01 Sun Apr 08 2007 01:34:06 GMT-0400 (Eastern Daylight Time)
  */
 function bb_moderation_hold_approve_posts($postids){
   global $bbdb, $thread_ids_cache;
-  if ($postids) : foreach($postids as $post_id) :
-    $bbdb->query("UPDATE $bbdb->posts SET post_status = '0' WHERE post_id = '$post_id'");
-    $bb_post    = bb_get_post ( $post_id );
-    add_filter( 'get_topic_where', 'no_where' );
-    $topic   = get_topic( $bb_post->topic_id , false);
-    $topic_id = (int) $topic->topic_id;
-
-    if (!$user = bb_get_user( $bb_post->poster_id )){
-      $uid = 0;
-      $uname = $bb_post->poster_name;
-    } else {
-      $uid = $bb_post->poster_id;
+  if ($postids) {
+    foreach($postids as $post_id) {
+      $bbdb->query("UPDATE $bbdb->posts SET post_status = '0' WHERE post_id = '$post_id'");
+      $bb_post = bb_get_post ( $post_id );
+      add_filter( 'get_topic_where', 'no_where' );
+      $topic   = get_topic( $bb_post->topic_id , false);
+      $topic_id = (int) $topic->topic_id;
+  
+      if (!$user = bb_get_user( $bb_post->poster_id )){
+        $uid = 0;
+        $uname = $bb_post->poster_name;
+      } else {
+        $uid = $bb_post->poster_id;
+      }
+  
+      $topic_posts = $topic->topic_posts + 1;
+  
+      $bbdb->query("UPDATE $bbdb->forums SET posts = posts + 1 WHERE forum_id = $topic->forum_id");
+      $bbdb->query("UPDATE $bbdb->topics SET topic_time = '" . $bb_post->post_time . "', topic_last_poster = '$uid', topic_last_poster_name = '$uname',
+        topic_last_post_id = '$post_id', topic_posts = '$topic_posts' WHERE topic_id = '$topic_id'");
+  
+      bb_update_topicmeta( $topic->topic_id, 'deleted_posts', isset($topic->deleted_posts) ? $topic->deleted_posts - 1 : 0 );
+  
+      if ( isset($thread_ids_cache[$topic_id]) ) {
+        $thread_ids_cache[$topic_id]['post'][] = $post_id;
+        $thread_ids_cache[$topic_id]['poster'][] = $uid;
+      }
+      
+      $post_ids = get_thread_post_ids( $topic_id );
+      if ( $uid && !in_array($uid, array_slice($post_ids['poster'], 0, -1)) )
+        bb_update_usermeta( $uid, $bb_table_prefix . 'topics_replied', $bb_current_user->data->topics_replied + 1 );
     }
-
-    $topic_posts = $topic->topic_posts + 1;
-
-    $bbdb->query("UPDATE $bbdb->forums SET posts = posts + 1 WHERE forum_id = $topic->forum_id");
-    $bbdb->query("UPDATE $bbdb->topics SET topic_time = '" . $bb_post->post_time . "', topic_last_poster = '$uid', topic_last_poster_name = '$uname',
-      topic_last_post_id = '$post_id', topic_posts = '$topic_posts' WHERE topic_id = '$topic_id'");
-
-    bb_update_topicmeta( $topic->topic_id, 'deleted_posts', isset($topic->deleted_posts) ? $topic->deleted_posts - 1 : 0 );
-
-    if ( isset($thread_ids_cache[$topic_id]) ) {
-      $thread_ids_cache[$topic_id]['post'][] = $post_id;
-      $thread_ids_cache[$topic_id]['poster'][] = $uid;
-    }
-    
-    $post_ids = get_thread_post_ids( $topic_id );
-    if ( $uid && !in_array($uid, array_slice($post_ids['poster'], 0, -1)) )
-      bb_update_usermeta( $uid, $bb_table_prefix . 'topics_replied', $bb_current_user->data->topics_replied + 1 );
-  endforeach; endif;
+  }
 }
 ?>
