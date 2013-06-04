@@ -5,7 +5,7 @@ Plugin URI: http://bbpress.org/plugins/topic/bb-mail-smtp/
 Description: Allows bbPress to send email through an SMTP server
 Author: Sam Bauers
 Author URI: http://bbpress.org/plugins/topic/bb-mail-smtp/other_notes/
-Version: 0.1
+Version: 100.0.1 modified by FV
 
 Version History:
 0.1		: Initial Release
@@ -57,22 +57,30 @@ class BB_SMTP_Mailer
 	var $mailer = 'smtp';
 	
 	// Set a specific name that emails will appear to come from
-	var $from_name = '';
+	var $from_name = 'Foliovision Support Forums';
+	
+	///
+	var $secure = 'ssl';
+	///
 	
 	// The hostname of the SMTP server
-	var $smtp_host = 'localhost';
+	var $smtp_host = 'smtp.sendgrid.net';
+	//var $smtp_host = 'hosting.foliovision.net';
 	
 	// The port (default is 25)
-	var $smtp_port = 25;
+	var $smtp_port = 465;
 	
 	// Use authentication (true or false)
-	var $smtp_auth = false;
+	var $smtp_auth = true;
 	
 	// Authentication user
-	var $smtp_user = '';
+	var $smtp_user = 'website@foliovision.com';
+	//var $smtp_user = 'webforms@foliovision.com';
 	
 	// Athentication password
-	var $smtp_pass = '';
+	var $smtp_pass = 'KLrIUWKk0BfIsQDA';
+	//var $smtp_pass = 'llv0Q16PZDV1r8';
+
 	
 	/* END SETTINGS */
 	
@@ -98,6 +106,10 @@ class BB_SMTP_Mailer
 		}
 
 		if ($this->mailer == 'smtp') {
+		  ///
+		  ///$mailer_object->SMTPDebug = true;
+		  $mailer_object->SMTPSecure = $this->secure;
+		  ///
 			$mailer_object->Mailer = $this->mailer;
 			$mailer_object->Host = $this->smtp_host;
 			if ($this->smtp_port) {
