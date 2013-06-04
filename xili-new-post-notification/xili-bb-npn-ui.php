@@ -24,7 +24,7 @@ $topics = get_user_favorites( $user_id, true );
 
 <?php if ( $topics ) : ?>
 
-<p><?php echo get_user_name( $user_id ); ?> <?php _e('currently has favorites.');  ?> <?php _e('(future version of plugin will allow selection one by one)');  ?> </p>
+<p><?php echo get_user_name( $user_id ); ?> <?php _e('currently has favorites.');  ?></p>
 
 <?php if ( bb_current_user_can( 'edit_favorites_of', $user_id ) ) : ?>
 	<?php 
@@ -51,15 +51,14 @@ $topics = get_user_favorites( $user_id, true );
 	}
 	?>
 	<form method="post" action="<?php profile_tab_link( $user->ID, 'xnpn', BB_URI_CONTEXT_FORM_ACTION + BB_URI_CONTEXT_BB_USER_FORMS ); ?>">
-	<fieldset>
+	<!--<fieldset>
 	<legend><?php _e('Post notification','xnpn'); ?></legend>
 	<label><?php _e('Do you need to receive email for all ?','xnpn'); ?>&nbsp;&nbsp;<input id="xnpn_check" name="xnpn_check" type="checkbox" value="xnpn" <?php if($selectall == 1) echo 'checked="checked"' ?> /></label>
-	</fieldset>
+	</fieldset>-->
 	<p class="submit right">
 	<?php bb_nonce_field( 'xnpn-profile_' . $user->ID ); ?>
 	  <input type="submit" name="Submit" value="<?php echo esc_attr__( 'Update Profile &raquo;' ); ?>" />
 	</p>
-	<p><br /><small>Â© 2010 - dev.xiligroup.com - <?php echo XNPN_VER; ?></small></p>
 	</form>	
 <?php endif; ?>
 </p>

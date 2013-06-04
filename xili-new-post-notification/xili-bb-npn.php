@@ -5,9 +5,18 @@
  * Author: michelwppi
  * Author URI: http://dev.xiligroup.com
  * Plugin URI: http://forum2.dev.xiligroup.com/forum.php?id=4
- * Version: 0.9.5
+ * Version: 100.9.5 modified by FV
  */
 
+
+/*
+FV changes
+xili-bb-npn-ui.php:
+attribution gone, "Do you need to receive email for all" gone
+
+xili-bb-npn.php
+bb_user_search fix, $userchecks skipped
+*/
 
 /*
 Changes :
@@ -97,7 +106,7 @@ function bb_xnpn_configuration_page() {
 		
 	</form>	
 	<p>&nbsp;</p>
-	<small>** <?php _e('xili New Post Notification by dev.xiligroup.com Â© 2009-10','xnpn'); echo ' v '.XNPN_VER; ?> **</small>
+	<small>** <?php _e('xili New Post Notification by dev.xiligroup.com © 2009-10','xnpn'); echo ' v '.XNPN_VER; ?> **</small>
 	</div>
 <?php
 }
@@ -159,17 +168,48 @@ function admin_notification_new_post($post_id = 0) { // thanks Markus of comment
 
 		$topic = get_topic($topic_id);
 		
-		$header = 'From: '.bb_get_option('from_email')."\n"; 
-		$header .= 'MIME-Version: 1.0'."\n";
+    /*** Adding of Reply To - V.Varga 15/05/2013 ***/
+    
+    if($post_id != 0) {
+      $objPost = bb_get_post($post_id);
+      $objUser = bb_get_user($objPost->poster_id);
+      $strDisplayName = $objUser->display_name;
+      $strReplyToEmail = $objUser->user_email;
+    }
+    
+    /*** end of Adding of Reply To - V.Varga 15/05/2013 ***/
+    
+		$header = 'From: '.bb_get_option('from_email')."\n";
+    
+    /*** Adding of Reply To - V.Varga 15/05/2013 ***/
+    
+    if( $strReplyToEmail && $strDisplayName ) {
+      $header .= 'Reply-To: ' . $strDisplayName . ' <' . $strReplyToEmail . '>' . "\n";
+    }
+		
+    /*** end of Adding of Reply To - V.Varga 15/05/2013 ***/
+    
+    $header .= 'MIME-Version: 1.0'."\n";
 		$header .= 'Content-Type: text/plain; charset="'.BBDB_CHARSET.'"'."\n";
 		$header .= 'Content-Transfer-Encoding: 8bit'."\n"; // 0.9.5
 		
 		$subject = __('There is a new post on: ','xnpn').$topic->topic_title;
-		$msg = __('Hello,','xnpn')."\n".get_user_name($bb_current_user->ID).__(' has posted here:','xnpn')."\n\n".get_topic_link($topic_id);
-		if ('' != $xnpn_admin_configuration['xnpn_email_content'])
-		 $msg .= "\n\n"."Content:"."\n\n".strip_tags(get_post_text($post_id)); // thanks Markus of comment suggest.
+		
+    /*** Adding of Reply To - V.Varga 15/05/2013 ***/
+    
+    if ( $strDisplayName ) {
+      $msg = __('Hello,','xnpn') . "\n" . $strDisplayName . __(' has posted here: ','xnpn') . get_topic_link($topic_id);
+    }
+    else {
+      $msg = __('Hello,','xnpn') . "\n" . get_user_name($bb_current_user->ID) . __(' has posted here: ','xnpn') . get_topic_link($topic_id);
+    }
+		
+    /*** end of Adding of Reply To - V.Varga 15/05/2013 ***/
+    
+    if ('' != $xnpn_admin_configuration['xnpn_email_content'])
+		 $msg .= "\n"."Content:"."\n".strip_tags(get_post_text($post_id)); // thanks Markus of comment suggest.
 		$theadminmsg = ( $xnpn_admin_configuration['xnpn_server_aware'] == 'serveraware' ) ? __('Users receive email if topic is favorite.','xnpn') : __('Users do not receive email even if topic is favorite - see plugin settings !','xnpn');
-		$msg .= "\n\n".sprintf(__('INFOS : %s','xnpn'),$theadminmsg)."\n\n";
+		$msg .= "\n".sprintf(__('INFOS : %s','xnpn'),$theadminmsg)."\n";
 		
 		if ( '' == $xnpn_admin_configuration['xnpn_email'] ) {
 			$msg = __('Hi Keymaster, don\'t forget to visit New Post Notification settings in forum admin UI and save a right email.','xnpn').$msg;
@@ -181,7 +221,10 @@ function admin_notification_new_post($post_id = 0) { // thanks Markus of comment
 		if ( $xnpn_admin_configuration['xnpn_server_aware'] == 'serveraware' )  { // to be sure that settings was done
 			// check the list of users
 			$xnpn_users_configuration = bb_get_option('xnpn_users_configuration') ; 
-			$users = bb_user_search();
+			///
+			$users = bb_user_search( array( 'users_per_page' => 1000000 ) );
+			///
+			
 			//print_r($users);
 			foreach ($users as $curuser) {
 				//if ( bb_is_trusted_user($curuser->ID) ) { = only admin , keymaster, moderator
@@ -195,12 +238,12 @@ function admin_notification_new_post($post_id = 0) { // thanks Markus of comment
 						}
 				    }
 				// is topic_id inside list
-					if ( is_user_favorite($curuser->ID , $topic_id) && $userchecks ){
+					if ( is_user_favorite($curuser->ID , $topic_id) /*&& $userchecks /// */ ){
 						// send topic to user email
-						$msg = __('Hello,','xnpn')." ".get_user_name($curuser->ID).",\n\n".get_user_name($bb_current_user->ID).__(' has posted here:','xnpn')."\n\n".get_topic_link($topic_id);
+						$msg = __('Hello,','xnpn')." ".get_user_name($curuser->ID).",\n".get_user_name($bb_current_user->ID).__(' has posted here:  ','xnpn').get_topic_link($topic_id);
 						if ( '' != $xnpn_admin_configuration['xnpn_email_content'] )
-				 				$msg .= "\n\n"."Content:"."\n\n".strip_tags(get_post_text($post_id));
-				 		$msg .= "\n\n".__('You receive this email because you have choosen this topic','xnpn')." (".$topic->topic_title.") ".__('as favorite','xnpn');
+				 				$msg .= "\n"."Content:"."\n".strip_tags(get_post_text($post_id));
+				 		$msg .= "\n".__('You receive this email because you have choosen the topic "','xnpn').$topic->topic_title.__('" as favorite. Unsubcribe here: http://foliovision.com/support/profile/'.get_user_name($curuser->ID).'/favorites','xnpn');
 						bb_mail($cur_user->user_email, $subject, $msg, $header);
 					}
 				//}
@@ -210,7 +253,7 @@ function admin_notification_new_post($post_id = 0) { // thanks Markus of comment
 }
 
 add_action('bb_new_post', 'admin_notification_new_post');
-//add_action('bb_insert_post', 'admin_notification_new_post');
+///add_action('bb_insert_post', 'admin_notification_new_post');
 
 
 if ( bb_is_profile() ) { // && $_GET['tab'] != 'new-post-notification'
@@ -219,23 +262,37 @@ if ( bb_is_profile() ) { // && $_GET['tab'] != 'new-post-notification'
 }
 
 function bb_check_xnpn_add_profile_tab() {
+
 	global $self;
+
 	if ( !$self ) {
 		$role="read";
-		add_profile_tab(__('New Post Notification','xnpn'), $role, $role, dirname( __FILE__ ) .'/xili-bb-npn-ui.php','xnpn' );	
+
+		///add_profile_tab(__('New Post Notification','xnpn'), $role, $role, dirname( __FILE__ ) .'/xili-bb-npn-ui.php','xnpn' );	
+
+    add_profile_tab(__('New Post Notification','xnpn'), $role, $role, dirname( __FILE__ ) .'/xili-bb-npn-ui.php','subscriptions' );	
 	}
+
 		
+
 }
 
 
 
 function bb_check_xnpn_profile_key($keys) {	// inserts xnpn into profile without hacking
+
 	global $self;
+
 	if (empty($self)==true && isset($_GET['tab'])==false && bb_get_location()=="xnpn") {	
+
 		(array) $keys = array_merge(array_slice((array) $keys, 0 , 1), array('xili-new-post-notification' => array(0, "xnpn")), array_slice((array) $keys,  1));    
+
 	}
+
 	return (array) $keys;
+
 }
+
 
 
 
