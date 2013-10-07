@@ -1,0 +1,41 @@
+== bb-moderation-hold ==
+
+How to handle moderation and threads.
+
+Put this at the top of topic.php:
+
+global $topic_id, $bbdb, $bb_current_user;
+$topic = $bbdb->get_row( "SELECT post_status, poster_id FROM bb_posts WHERE topic_id = '{$topic_id}' ORDER BY post_time LIMIT 1" );
+
+if( $topic->post_status == -1 && $topic->poster_id != $bb_current_user->ID && !current_user_can('manage_options') ) {
+	$user_not_authorized = true;
+}
+
+Then you can include the login for like this:
+
+<?php if( $user_not_authorized ) : ?>
+
+	<p>You are not authorized to view this thread, please login below:</p>
+	
+	<div class="fv-access-denied">
+		<?php
+		$login_form_show = true;
+		include('login-form-html.php'); ?>
+	</div>
+
+<?php else : ?>
+
+front-page.php, forum.php:
+
+Put this at the start of every loop:
+
+global $bbdb;
+	$topic_status = $bbdb->get_var( "SELECT post_status FROM bb_posts WHERE topic_id = '{$topic->topic_id}' ORDER BY post_time LIMIT 1" );
+
+	$private = '';
+	if( $topic_status == -1 ) {
+		if( !current_user_can('manage_options') ) {
+			continue;
+		}
+		$private = ' <em>(private)</em>';
+	}
