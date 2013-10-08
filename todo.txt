@@ -5,9 +5,9 @@ How to handle moderation and threads.
 Put this at the top of topic.php:
 
 global $topic_id, $bbdb, $bb_current_user;
-$topic = $bbdb->get_row( "SELECT post_status, poster_id FROM bb_posts WHERE topic_id = '{$topic_id}' ORDER BY post_time LIMIT 1" );
+$topic_check = $bbdb->get_row( "SELECT post_status, poster_id FROM bb_posts WHERE topic_id = '{$topic_id}' ORDER BY post_time LIMIT 1" );
 
-if( $topic->post_status == -1 && $topic->poster_id != $bb_current_user->ID && !current_user_can('manage_options') ) {
+if( $topic_check->post_status == -1 && $topic_check->poster_id != $bb_current_user->ID && !current_user_can('manage_options') ) {
 	$user_not_authorized = true;
 }
 
@@ -46,6 +46,28 @@ And echo $private behind the title.
 
 
 forum.php:
+
+Put this before list of "Latest Discussions":
+
+   	$tmp_topic_ids = array();
+	foreach( $results AS $results_i ) {
+		$tmp_topic_ids[] = $results_i->topic_id;
+	}
+	$tmp_topic_ids = implode( ',', $tmp_topic_ids );
+	$moderated = $bbdb->get_results( "SELECT topic_id, post_id, post_time, post_status, poster_id FROM {$bbdb->prefix}posts WHERE topic_id IN ({$tmp_topic_ids}) GROUP BY topic_id HAVING MIN(post_time)", OBJECT_K );
+
+Then in each iteration:
+
+	$private = '';
+	if( isset( $moderated[$results_i->topic_id] ) && $moderated[$results_i->topic_id]->post_status == -1 ) {
+		if( current_user_can('manage_options') || $bb_current_user->ID == $moderated[$results_i->topic_id]->poster_id ) {
+			$private = ' <em>(private)</em>';
+		} else {
+			continue;
+		}
+	}
+
+
 
 Put this before each foreach loop:
 
