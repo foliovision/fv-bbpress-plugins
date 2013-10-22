@@ -34,7 +34,7 @@ Put this at the start of the loop:
 	$topic_private = $bbdb->get_row( "SELECT post_status, poster_id FROM bb_posts WHERE topic_id = '{$topic->topic_id}' ORDER BY post_time LIMIT 1" );
 
 	$private = '';
-	if( $topic_private->topic_status == -1 ) {
+	if( $topic_private->post_status == -1 ) {
 		if( current_user_can('manage_options') || $bb_current_user->ID == $topic_private->poster_id ) {
 			$private = ' <em>(private)</em>';
 		} else {
