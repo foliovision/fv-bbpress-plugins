@@ -59,8 +59,8 @@ Put this before list of "Latest Discussions":
 Then in each iteration:
 
 	$private = '';
-	if( isset( $moderated[$results_i->topic_id] ) && $moderated[$results_i->topic_id]->post_status == -1 ) {
-		if( current_user_can('manage_options') || $bb_current_user->ID == $moderated[$results_i->topic_id]->poster_id ) {
+	if( isset( $moderated[$topic->topic_id] ) && $moderated[$topic->topic_id]->post_status == -1 ) {
+		if( current_user_can('manage_options') || $bb_current_user->ID == $moderated[$topic->topic_id]->poster_id ) {
 			$private = ' <em>(private)</em>';
 		} else {
 			continue;
