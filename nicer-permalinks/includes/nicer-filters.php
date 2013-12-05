@@ -103,8 +103,9 @@ function get_topic_nicer_link( $link ) {
 function get_post_nicer_link( $link, $post_id = 0 ) {
 	if ( empty( $post_id ) ) { // Fix for bbPress 1.0.2 Relevant "posts" links
 		global $bb_post; // $bb_post actually is a topic object
-
+		remove_filter( 'get_post_link',  'get_post_nicer_link', 10, 2 );
 		$link = get_post_link( bb_get_first_post( $bb_post )->post_id );
+		add_filter( 'get_post_link',  'get_post_nicer_link', 10, 2 );
 	}
 
 	return $link;
