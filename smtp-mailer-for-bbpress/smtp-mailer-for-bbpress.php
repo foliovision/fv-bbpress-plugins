@@ -5,7 +5,7 @@ Plugin URI: http://bbpress.org/plugins/topic/bb-mail-smtp/
 Description: Allows bbPress to send email through an SMTP server
 Author: Sam Bauers
 Author URI: http://bbpress.org/plugins/topic/bb-mail-smtp/other_notes/
-Version: 100.0.1 modified by FV
+Version: 100.0.1fv - includes Settings + SSL
 
 Version History:
 0.1		: Initial Release
@@ -16,7 +16,7 @@ Version History:
  * 
  * ----------------------------------------------------------------------------------
  * 
- * Copyright (C) 2008 Sam Bauers (http://unlettered.org/)
+ * Copyright (C) 2008 Sam Bauers (http://unlettered.org/)Body
  * 
  * ----------------------------------------------------------------------------------
  * 
@@ -104,6 +104,12 @@ class BB_SMTP_Mailer
 		if (!$mailer_object || !is_object($mailer_object) || !is_a($mailer_object, 'PHPMailer')) {
 			return false;
 		}
+    
+    $mailer_object->CharSet = "UTF-8";
+    $mailer_object->AltBody = $mailer_object->Body;
+    $mailer_object->Body = bb_autop(make_clickable($mailer_object->Body));
+    /*$mailer_object->IsHTML = true;
+    $mailer_object->ContentType = 'text/html';*/
 
 		if ($this->mailer == 'smtp') {
 		  ///

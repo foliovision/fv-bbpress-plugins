@@ -17,7 +17,9 @@ add_filter( 'get_post_link',  'get_post_nicer_link', 10, 2 );
 
 /// 
 function get_forum_slug_recursive( $id ) {
+  $id = is_int($id) ? $id : get_forum_id( $id );
   $forum = bb_get_forum( get_forum_id( $id ) );
+  
   $slug = $forum->forum_slug;
   if( $forum->forum_parent != 0 ) {
     $slug = get_forum_slug_recursive( $forum->forum_parent ).'/'.$slug;
@@ -71,19 +73,25 @@ function get_topic_nicer_link( $link ) {
 	)
 		return $_SERVER['REQUEST_URI'] . '/'; // Append '/' to dodge .htaccess' rules
 
-	global $topic;
-
-	if ( empty( $topic ) || is_string( $topic ) ) { // bb-post.php names $topic a trimmed version of the post title, but here we are looking for the topic object
-		$topic = bb_get_topic_from_uri( $link );
-
-		if ( empty( $topic ) ) // Fix for bbPress 1.0.2 deleted topic redirection link
-			return add_query_arg( 'view', 'all', wp_get_referer() );
-	}
+  $aArgs = func_get_args();
+  if( isset($aArgs[1]) && $aArgs[1] > 0 ) {
+    $topic = get_topic($aArgs[1]);    
+  } else {
+    global $topic;
+  
+    if ( empty( $topic ) || is_string( $topic ) ) { // bb-post.php names $topic a trimmed version of the post title, but here we are looking for the topic object
+      $topic = bb_get_topic_from_uri( $link );
+  
+      if ( empty( $topic ) ) // Fix for bbPress 1.0.2 deleted topic redirection link
+        return add_query_arg( 'view', 'all', wp_get_referer() );
+    }
+  }
 
 	// Replace "topic" word with parent forum slug to emphasize hierarchy
 	///return str_replace( $bb->uri . 'topic', $bb->uri . bb_get_forum( $topic->forum_id )->forum_slug, $link );
 	 
-	$forum_slug_recursive = get_forum_slug_recursive( $topic->forum_id );	
+	$forum_slug_recursive = get_forum_slug_recursive( $topic->forum_id );
+
 	return str_replace( $bb->uri . 'topic', $bb->uri . $forum_slug_recursive, $link );
 }
 
@@ -103,9 +111,10 @@ function get_topic_nicer_link( $link ) {
 function get_post_nicer_link( $link, $post_id = 0 ) {
 	if ( empty( $post_id ) ) { // Fix for bbPress 1.0.2 Relevant "posts" links
 		global $bb_post; // $bb_post actually is a topic object
-		remove_filter( 'get_post_link',  'get_post_nicer_link', 10, 2 );
+
+    remove_filter( 'get_post_link',  'get_post_nicer_link', 10, 2 );
 		$link = get_post_link( bb_get_first_post( $bb_post )->post_id );
-		add_filter( 'get_post_link',  'get_post_nicer_link', 10, 2 );
+    add_filter( 'get_post_link',  'get_post_nicer_link', 10, 2 );
 	}
 
 	return $link;

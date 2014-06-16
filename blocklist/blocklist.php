@@ -170,4 +170,5 @@ function blocklist_check($post_id=0,$wall=false) {
 		}
 	} 	
 }
+
 ?>

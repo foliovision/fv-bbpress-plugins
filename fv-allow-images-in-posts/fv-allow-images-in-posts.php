@@ -5,7 +5,6 @@
  * Author: Foliovision
  * Author URI: http://foliovision.com   
  * Version: 1.0
- * Plugin URI: http://foliovision.com 
  */ 
  
 add_filter( 'bb_allowed_tags', 'fv_allow_images_filter' );

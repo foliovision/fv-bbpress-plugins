@@ -5,22 +5,36 @@ Plugin URI: http://www.adityanaik.com
 Description: Hold posts and topics for moderation
 Author: Aditya Naik
 Author URI: http://www.adityanaik.com/
-Version: 100.0.4.1 modified by FV
+Version: 101.0.4.1fv
 */
 
+$fv_moderate_hashed_email = false;
 
-add_filter( 'bb_init', 'fv_moderate_init', 5 );
+require_once( dirname( __FILE__ ) . '/fvcrypt.php' );
 
-function fv_moderate_init( ) {
+add_filter( 'bb_parse_query', 'fv_moderate_init', 0 );
+
+function fv_moderate_init() {
   global $bb_current_user;
+  global $topic;
+  global $fv_moderate_hashed_email;
   
-  if( $_COOKIE['fv_forum_email'] || isset( $bb_current_user->ID ) || bb_current_user_can('browse_deleted') ) {
+  
+  
+  /*if( isset($topic) && isset($_GET['moderated_id']) && class_exists('FVCrypt_fv_moderate') ) {
+  	$decrypt = new FVCrypt_fv_moderate( $topic->topic_title );
+  	$fv_moderate_hashed_email = $decrypt->Decrypt($_GET['moderated_id']);
+  }
+  //echo '<!--fv_moderate_init  fv_moderate_hashed_email '.var_export($fv_moderate_hashed_email,true).' for '.$topic->topic_title.' -->';*/
+  if( $fv_moderate_hashed_email || $_COOKIE['fv_forum_email'] || isset( $bb_current_user->ID ) || bb_current_user_can('browse_deleted') ) {
     add_filter( 'get_posts_where', 'fv_moderate_get_posts_where' );
   }  
 }
 
    
 function fv_moderate_get_posts_where( $where ) {
+  global $fv_moderate_hashed_email;
+
   if( bb_current_user_can('browse_deleted') ) {
     if( strpos( $where, "p.post_status = '0'" ) !== FALSE ) {
       $where = str_replace( "p.post_status = '0'", "( p.post_status = '0' OR p.post_status = '-1' )", $where );
@@ -32,8 +46,16 @@ function fv_moderate_get_posts_where( $where ) {
     if( isset( $bb_current_user->ID ) ) {
       $user_id = $bb_current_user->ID;
     } else {
-      $email = $bbdb->escape($_COOKIE['fv_forum_email']); 
+    	if( $fv_moderate_hashed_email ) {
+    		$email = $fv_moderate_hashed_email;
+    	} else if( isset( $_COOKIE['fv_forum_email'] ) ) {
+      	$email = $bbdb->escape($_COOKIE['fv_forum_email']); 
+      }
       $user_id = $bbdb->get_var( "SELECT ID FROM $bbdb->users WHERE user_email = '{$email}'" );
+    }
+    
+    if( !$user_id ) {
+      return $where;
     }
     
     if( strpos( $where, "p.post_status = '0'" ) !== FALSE ) {
@@ -69,6 +91,7 @@ function fv_moderate_get_topics_where( $where ) {
     $where .= ' AND t.topic_posts > 0 ';
   }
   
+  //echo '<!--new where '.$where.'-->'."\n";
   return $where;
 }
 
@@ -193,7 +216,7 @@ function bb_moderation_check_options($check = 'hold_topics', $options = false) {
 }
 add_action('bb_post.php','bb_moderation_hold_after_posting_do_the_magic');
 add_filter('pre_post_status','bb_moderation_fix_status_before_post',10,3);
-//add_filter('post_delete_link','bb_moderation_fix_delete_link',10,3);     // we don't need this one anymore -> have the ajax "Approve" button on the frontend
+//add_filter('post_delete_link','bb_moderation_fix_delete_link',10,3);     // we don't need this one anymore -> have the Approve button
 add_filter('post_delete_link','fv_moderation_approve_link',10,3);
 
 /**
@@ -442,6 +465,7 @@ function bb_moderation_hold_post_admin_page() {
               <td style="width: 20px; "><input type="checkbox" name="postids[]" value="<?php post_id(); ?>" /></td>
               <td class="post">
                 <?php post_text(); ?>
+                <!--<div><?php //echo substr(get_post_text(),0,150); ?></div>-->
                 <div>
                 <span class="row-actions"><a href="<?php post_link(); ?>">Permalink</a>
 <?php
@@ -630,4 +654,25 @@ function bb_moderation_hold_approve_posts($postids){
     }
   }
 }
+
+
+
+add_action( 'bb_rss.php_pre_db', 'fv_bb_moderation_hold_rss' );
+
+function fv_bb_moderation_hold_rss() {
+//die('wooot??');
+	if ( isset($_GET['topic']) || bb_get_path() == 'topic' ) {		
+		// Topic
+		$feed = 'topic';
+		$topic = get_topic(isset($_GET['topic']) ? $_GET['topic'] : bb_get_path(2));
+		$feed_id = $topic->topic_id;		
+	}
+	$topic_status = $bbdb->get_var( "SELECT post_status FROM bb_posts WHERE topic_id = '{$topic_id}' ORDER BY post_time LIMIT 1" );
+	
+	if( $topic_status == -1 && !current_user_can('manage_options') ) {
+		die('woot!');
+	}
+
+}
+
 ?>

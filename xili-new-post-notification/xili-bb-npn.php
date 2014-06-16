@@ -5,7 +5,7 @@
  * Author: michelwppi
  * Author URI: http://dev.xiligroup.com
  * Plugin URI: http://forum2.dev.xiligroup.com/forum.php?id=4
- * Version: 100.9.5 modified by FV
+ * Version: 100.0.9.5fv
  */
 
 
@@ -193,7 +193,7 @@ function admin_notification_new_post($post_id = 0) { // thanks Markus of comment
 		$header .= 'Content-Type: text/plain; charset="'.BBDB_CHARSET.'"'."\n";
 		$header .= 'Content-Transfer-Encoding: 8bit'."\n"; // 0.9.5
 		
-		$subject = __('There is a new post on: ','xnpn').$topic->topic_title;
+		$subject = __('@alec ','xnpn').$topic->topic_title;
 		
     /*** Adding of Reply To - V.Varga 15/05/2013 ***/
     
@@ -203,6 +203,8 @@ function admin_notification_new_post($post_id = 0) { // thanks Markus of comment
     else {
       $msg = __('Hello,','xnpn') . "\n" . get_user_name($bb_current_user->ID) . __(' has posted here: ','xnpn') . get_topic_link($topic_id);
     }
+		
+		//$msg .= var_export($objPost,true);
 		
     /*** end of Adding of Reply To - V.Varga 15/05/2013 ***/
     
@@ -241,6 +243,21 @@ function admin_notification_new_post($post_id = 0) { // thanks Markus of comment
 					if ( is_user_favorite($curuser->ID , $topic_id) /*&& $userchecks /// */ ){
 						// send topic to user email
 						$msg = __('Hello,','xnpn')." ".get_user_name($curuser->ID).",\n".get_user_name($bb_current_user->ID).__(' has posted here:  ','xnpn').get_topic_link($topic_id);
+
+if( $_SERVER['REMOTE_ADDR'] == '188.167.15.220disabled' ) {						
+						///	Addition 2013/08/19
+						global $bbdb;				
+						$user_has_unapproved = $bbdb->get_var( "SELECT post_id FROM $bbdb->posts WHERE topic_id IN ($topic_id) AND post_status = -1 AND poster_id = '{$curuser->ID}' LIMIT 1" );
+						if( $user_has_unapproved ) {				
+							require_once( dirname( __FILE__ ) . '/fvcrypt.php' );						
+							if( class_exists('FVCrypt_xili') ) {					
+								$fvcrypt = new FVCrypt_xili( $topic->topic_title );												
+								$msg .= '?moderated_id='.$fvcrypt->Encrypt($cur_user->user_email);
+							}
+						} 					
+						///	End of addition
+}
+
 						if ( '' != $xnpn_admin_configuration['xnpn_email_content'] )
 				 				$msg .= "\n"."Content:"."\n".strip_tags(get_post_text($post_id));
 				 		$msg .= "\n".__('You receive this email because you have choosen the topic "','xnpn').$topic->topic_title.__('" as favorite. Unsubcribe here: http://foliovision.com/support/profile/'.get_user_name($curuser->ID).'/favorites','xnpn');

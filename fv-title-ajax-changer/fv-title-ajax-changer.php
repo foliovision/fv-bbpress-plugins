@@ -3,9 +3,8 @@
 Plugin Name: FV Ajax Topic Title Changer
 Description: Lets you edit the topic title in frontend.
 Author: Folivision
-Author URI: http://folivoision.com/
+Author URI: http://www.folivoision.com/
 Version: 1.0
-Plugin URI: http://foliovision.com/
 */
 
 add_action('bb_ajax_change-topic-title','fv_change_topic_title_action' );

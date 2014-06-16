@@ -1,9 +1,9 @@
 <?php
 /*
-Plugin Name: Nicer Permalinks
+Plugin Name: Nicer Permalinks FV
 Plugin URI: http://bbpress.org/plugins/topic/nicer-permalinks/
 Description: FV version puts names of forums into the topic url: /forum1/subforum1/topic. It had some issues with not existing topics because of that, so there is a hack on get_topic_link in it. Also .htaccess is heavily modified.
-Version: 100.5.0.7 modified by FV
+Version: 100.5.0.7fv.2
 Author: mr_pelle
 Author URI: http://scr.im/mrpelle
 */
